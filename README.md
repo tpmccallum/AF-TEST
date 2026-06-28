@@ -56,12 +56,17 @@ addEventListener('fetch', (event) => {
 
 ```
 
-# Localhost 
-These are timed curl commands but when executed the logs show approx 10ms:
+# Localhost App Logs
+
+When executed, the logs show approx 10ms:
 
 ```
 [TIMING] example.com → 200 in 11ms
 ```
+
+# Localhost Curl
+
+These are time curl commands for the different endpoints of the app:
 
 ```
 $ curl -i -s -w "RTT: %{time_total}s\n" 127.0.0.1:3001
@@ -94,12 +99,17 @@ ok
 RTT: 0.019594s
 ```
 
-# AF
+# AF App Logs
 
-These are timed curl commands but when executed the logs show approx 200ms:
+When executed, the logs show approx 200ms:
+
 ```
 2026-06-28 04:02:18 [hello-spin]  [TIMING] example.com → 200 in 208ms
 ```
+
+# AF Curl Commands
+
+These are timed curl commands: 
 
 ```
 $ curl -i -s -w "RTT: %{time_total}s\n" https://749f31f4-a554-495a-8407-e8435e3d06ff.fwf.app
