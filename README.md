@@ -1,133 +1,143 @@
 # AF-TEST
 
 Testing the latency of the round-trip.
+One outbound request to example.com:
+- `0.019594s` localhost
+- `0.634333s` AF
 
-# Install Spin (and plugins)
+Find percentage using (((new - old) / old) * 100) formula:
+`(((0.019594 - 0.634333)/0.634333)*100)`
+Localhost is 96% faster at a round-trip to example.com
 
-Install Spin:
-
-```
-curl -fsSL https://developer.fermyon.com/downloads/fwf_install.sh | bash
-sudo mv ./spin /usr/local/bin/spin
-```
-
-Install `aka` plugin:
+# TypeScript
 
 ```
-spin plugin install aka
-spin plugins update  
-spin plugins upgrade aka
-```
+interface FetchEvent extends Event {
+  request: Request;
+  respondWith(response: Promise<Response> | Response): void;
+}
 
-# Check Node Version
-
-```
-node --version
-```
-
-Returns:
-
-```
-v22.22.3
-```
-
-# Create New Spin Application
-
-```
-spin new -E akamai-functions -t http-js --accept-defaults hello-spin
-cd hello-spin
-```
-
-# Create TypeScript Application Source Code
-
-```
-// For AutoRouter documentation refer to https://itty.dev/itty-router/routers/autorouter
 import { AutoRouter } from 'itty-router';
 
-let router = AutoRouter();
+interface TimingEntry {
+  operation: string;
+  status: number;
+  durationMs: number;
+  timestamp: string;
+}
 
-// Route ordering matters, the first route that matches will be used
-// Any route that does not return will be treated as a middleware
-// Any unmatched route will return a 404
+function recordTiming(operation: string, status: number, startMs: number) {
+  const durationMs = Date.now() - startMs;
+  console.log(`[TIMING] ${operation} → ${status} in ${durationMs}ms`);
+}
+
+const router = AutoRouter();
+
 router
-    .get('/', () => new Response('Hello, Spin!'))
-    .get('/hello/:name', ({ name }) => `Hello, ${name}!`)
+  .get('/', () => new Response('Hello, Spin.'))
+  .get('/hello/:name', ({ name }) => new Response(`Hello, ${name}!`));
+
+router.get('/test', async () => {
+  const start = Date.now();
+
+  const resp = await fetch('https://example.com', {
+    method: 'GET',
+    headers: { accept: 'text/html' },
+  });
+
+  recordTiming('example.com', resp.status, start);
+
+  return new Response('ok');
+});
 
 addEventListener('fetch', (event) => {
-    event.respondWith(router.fetch(event.request));
+  (event as FetchEvent).respondWith(router.fetch((event as FetchEvent).request));
 });
-```
-
-# Build & Run Application
 
 ```
-spin up --listen 127.0.0.1:3001
-```
 
-Returns:
-```
-Logging component stdio to ".spin/logs/"
-Preparing Wasm modules is taking a few seconds...
-
-
-Serving http://127.0.0.1:3001
-Available Routes:
-  hello-spin: http://127.0.0.1:3001 (wildcard)
-```
-
-# Time Localhost
+# Localhost
 
 ```
-curl -i -s -w "RTT: %{time_total}s\n" 127.0.0.1:3001
-```
-
-Returns:
-
-```
+$ curl -i -s -w "RTT: %{time_total}s\n" 127.0.0.1:3001
 HTTP/1.1 200 OK
 content-length: 12
 content-type: text/plain;charset=UTF-8
-date: Sat, 27 Jun 2026 23:34:12 GMT
-
-Hello, Spin!RTT: 0.005086s
+date: Sun, 28 Jun 2026 00:47:57 GMT
+Hello, Spin.
+RTT: 0.005706s
 ```
 
-# Push App To Registry
-
 ```
-spin aka deploy
-```
-
-Returns:
-
-```
-Name of new app: hello-spin
-Creating new app hello-spin in account 
-Note: If you would instead like to deploy to an existing app, cancel this deploy and link this workspace to the app with `spin aka app link`
-OK to continue? yes
-Workspace linked to app hello-spin
+$ curl -i -s -w "RTT: %{time_total}s\n" 127.0.0.1:3001/hello/tim
+HTTP/1.1 200 OK
+content-length: 11
+content-type: text/plain;charset=UTF-8
+date: Sun, 28 Jun 2026 00:48:24 GMT
+Hello, tim!
+RTT: 0.005512s
 ```
 
-# Time Registry
-
-```
-curl -i -s -w "RTT: %{time_total}s\n" https://749f31f4-a554-495a-8407-e8435e3d06ff.fwf.app
 ```
 
-Returns:
+$ curl -i -s -w "RTT: %{time_total}s\n" 127.0.0.1:3001/test
+HTTP/1.1 200 OK
+content-length: 2
+content-type: text/plain;charset=UTF-8
+date: Sun, 28 Jun 2026 00:49:00 GMT
+ok
+RTT: 0.019594s
+```
+
+# AF
 
 ```
+$ curl -i -s -w "RTT: %{time_total}s\n" https://749f31f4-a554-495a-8407-e8435e3d06ff.fwf.app
 HTTP/1.1 200 OK
 Content-Length: 12
 Content-Type: text/plain;charset=UTF-8
-x-envoy-upstream-service-time: 61
+x-envoy-upstream-service-time: 11
 Server: envoy
-Date: Sat, 27 Jun 2026 23:38:00 GMT
+Date: Sun, 28 Jun 2026 00:50:13 GMT
 Connection: keep-alive
-Akamai-Request-BC: [a=23.45.168.116,b=138064109,c=g,n=AU_QLD_BRISBANE,o=20940],[a=95,c=o]
-Set-Cookie: akaalb_fwf-prod-apps=~op=fwf_prod:fwf-dev-au-mel|~rv=20~m=fwf-dev-au-mel:0|~os=1231e1ede8704e97468b2ddc2c84cd5b~id=ce6b4da58d7dfa04e500c58dc316c040; path=/; HttpOnly; Secure; SameSite=None
-Akamai-GRN: 0.74a82d17.1782603479.83ab0ed
-
-Hello, Spin!RTT: 0.677859s
+Akamai-Request-BC: [a=23.45.168.118,b=99653042,c=g,n=AU_QLD_BRISBANE,o=20940],[a=197,c=o]
+Set-Cookie: akaalb_fwf-prod-apps=~op=fwf_prod:fwf-dev-au-mel|~rv=71~m=fwf-dev-au-mel:0|~os=1231e1ede8704e97468b2ddc2c84cd5b~id=09439a21d74412da99ad957a2bf9fdf4; path=/; HttpOnly; Secure; SameSite=None
+Akamai-GRN: 0.76a82d17.1782607813.5f095b2
+Hello, Spin.
+RTT: 0.156205s
 ```
+
+```
+$ curl -i -s -w "RTT: %{time_total}s\n" https://749f31f4-a554-495a-8407-e8435e3d06ff.fwf.app/hello/tim
+HTTP/1.1 200 OK
+Content-Length: 11
+Content-Type: text/plain;charset=UTF-8
+x-envoy-upstream-service-time: 2
+Server: envoy
+Date: Sun, 28 Jun 2026 00:51:01 GMT
+Connection: keep-alive
+Akamai-Request-BC: [a=23.45.168.116,b=141319396,c=g,n=AU_QLD_BRISBANE,o=20940],[a=76,c=o]
+Set-Cookie: akaalb_fwf-prod-apps=~op=fwf_prod:fwf-dev-au-mel|~rv=93~m=fwf-dev-au-mel:0|~os=1231e1ede8704e97468b2ddc2c84cd5b~id=c856f5436650368c48a4053afae8d10f; path=/; HttpOnly; Secure; SameSite=None
+Akamai-GRN: 0.74a82d17.1782607860.86c5ce4
+Hello, tim!
+RTT: 0.127381s
+```
+
+```
+$ curl -i -s -w "RTT: %{time_total}s\n" https://749f31f4-a554-495a-8407-e8435e3d06ff.fwf.app/test
+HTTP/1.1 200 OK
+Content-Length: 2
+Content-Type: text/plain;charset=UTF-8
+x-envoy-upstream-service-time: 215
+Server: envoy
+Date: Sun, 28 Jun 2026 00:51:40 GMT
+Connection: keep-alive
+Akamai-Request-BC: [a=23.45.168.118,b=99727189,c=g,n=AU_QLD_BRISBANE,o=20940],[a=197,c=o]
+Set-Cookie: akaalb_fwf-prod-apps=~op=fwf_prod:fwf-dev-au-mel|~rv=65~m=fwf-dev-au-mel:0|~os=1231e1ede8704e97468b2ddc2c84cd5b~id=3e5e0e2e0ff1f5f1c58b8c107c219b69; path=/; HttpOnly; Secure; SameSite=None
+Akamai-GRN: 0.76a82d17.1782607900.5f1b755
+ok
+RTT: 0.634333s
+```
+
+
 
